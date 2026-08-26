@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ER Replay 3D · .er 오프라인 디코드</title>
+<style>
+  :root{--bg:#0b0e14;--panel:#141922;--panel2:#1b2230;--line:#28303f;--text:#e6ebf2;--dim:#8c98a8;--dim2:#5d6675;--accent:#4ea1ff;--hp:#4ade80;--hp-lo:#f87171;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel);z-index:10}
+  header h1{font-size:15px;font-weight:700}header h1 .er{color:var(--accent)}
+  header .gid{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .cam{margin-left:auto;display:flex;gap:3px}
+  .cam button{padding:6px 11px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel2);color:var(--dim);border-radius:6px;cursor:pointer}
+  .cam button.on{color:var(--text);border-color:var(--accent)}
+  .clock{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums;margin-left:14px}.clock b{color:var(--text)}
+  #main{flex:1;display:flex;min-height:0}
+  #roster{width:196px;flex-shrink:0;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:8px}
+  .rt{font-size:10.5px;color:var(--dim2);text-transform:uppercase;letter-spacing:.6px;margin:8px 4px 4px}
+  .team-hd{display:flex;align-items:center;gap:7px;padding:4px 8px;margin-top:6px;font-size:11.5px;font-weight:700;color:var(--dim)}
+  .team-dot{width:8px;height:8px;border-radius:2px}
+  .pl{display:flex;align-items:center;gap:7px;padding:4px 8px 4px 20px;font-size:12.5px;cursor:pointer;border-radius:5px}
+  .pl:hover{background:var(--panel2)}.pl.sel{background:#223049;outline:1px solid var(--accent)}.pl.dead{opacity:.38}
+  .pl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pl .hpbar{width:34px;height:5px;border-radius:3px;background:#2a3341;overflow:hidden}.pl .hpbar i{display:block;height:100%;background:var(--hp)}
+  #view{flex:1;position:relative;min-width:0}
+  #cv3d{width:100%;height:100%;display:block}
+  #loadmsg{position:absolute;top:12px;left:12px;background:#0009;padding:6px 12px;border-radius:6px;font-size:12px;color:var(--dim)}
+  #side{width:360px;flex-shrink:0;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px 16px}
+  #side .empty{color:var(--dim2);text-align:center;padding:40px 10px;font-size:12.5px}
+  .pcard-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .pcard-hd .big{font-size:16px;font-weight:700}.pcard-hd .sub{font-size:11.5px;color:var(--dim)}
+  .hpwrap{margin-bottom:13px}.hpwrap .bar{height:9px;border-radius:5px;background:#2a3341;overflow:hidden}.hpwrap .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--hp-lo),var(--hp))}
+  .sec-t{font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:6px 0 7px}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:13px}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  .stat .k{font-size:10px;color:var(--dim);text-transform:uppercase}.stat .v{font-size:14.5px;font-weight:700;margin-top:1px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:3px 9px;font-size:11.5px}
+  .chip.buff{border-color:#3a5a3a}.chip.skill{border-color:#3a4a6a}.chip .d{color:var(--dim);font-size:10.5px;margin-left:4px}
+  footer{border-top:1px solid var(--line);background:var(--panel);padding:9px 18px 11px;display:flex;align-items:center;gap:13px}
+  footer button.play{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px;cursor:pointer}
+  #seek{flex:1;-webkit-appearance:none;height:6px;border-radius:3px;cursor:pointer;background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--p,0%),#2a3341 var(--p,0%));}
+  #seek::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:#fff;border:2px solid var(--accent)}
+  .spd{display:flex;gap:3px}.spd button{padding:6px 9px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel2);color:var(--dim);border-radius:6px;cursor:pointer}.spd button.on{color:var(--text);border-color:var(--accent)}
+  .status{font-size:11.5px;color:var(--dim2)}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<header>
+  <h1>ER Replay <span class="er">3D</span></h1>
+  <span class="gid" id="gid">game —</span>
+  <div class="cam">
+    <button id="cam-top" class="on" onclick="setCam('top')">위에서(Top)</button>
+    <button id="cam-iso" onclick="setCam('iso')">비스듬(Iso)</button>
+    <button id="cam-free" onclick="setCam('free')">자유</button>
+  </div>
+  <div class="clock"><b id="clk">0:00</b> / <span id="clkEnd">0:00</span></div>
+</header>
+<div id="main">
+  <div id="roster"><div class="rt">로스터 · 3인 1팀</div><div id="teams"></div></div>
+  <div id="view"><canvas id="cv3d"></canvas><div id="loadmsg">로딩…</div></div>
+  <div id="side"><div class="empty">플레이어를 클릭하면<br>스탯·버프·스킬 표시</div></div>
+</div>
+<footer>
+  <button class="play" id="playBtn" onclick="togglePlay()">&#9654;</button>
+  <input type="range" id="seek" min="0" max="1000" value="0" oninput="onSeek(this.value)">
+  <div class="spd"><button data-s="1" class="on" onclick="setSpeed(1,this)">1×</button><button data-s="2" onclick="setSpeed(2,this)">2×</button><button data-s="4" onclick="setSpeed(4,this)">4×</button><button data-s="8" onclick="setSpeed(8,this)">8×</button></div>
+  <span class="status" id="status"></span>
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+const TEAM_COLORS=[0x4ea1ff,0xf87171,0x4ade80,0xfbbf24,0xc084fc,0x22d3ee,0xfb923c,0xf472b6,0xa3e635,0xe879f9,0x2dd4bf,0xf59e0b];
+const TEAM_SIZE=3;
+// .er 월드좌표 → three.js: Unity(왼손)→glTF(오른손)는 x반전. 플레이어도 x→-x, z→z, 높이 y.
+const WX = x => -x, WZ = z => z;
+
+let TL,LOG,OBJTYPE={},logP={},AREAS=[];
+let players=[], tickMin=0,tickMax=1, cur=0, playing=false, speed=1, selId=null;
+let scene,camera,renderer,controls,clockEl;
+let markers={}, trails={}, raycaster,pointer;
+
+async function boot(){
+  initThree();
+  await loadData();
+  await loadMap();
+  buildPlayers(); buildRoster();
+  document.getElementById('loadmsg').style.display='none';
+  animate();
+}
+
+function initThree(){
+  const view=document.getElementById('view');
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0e14);
+  scene.fog=new THREE.Fog(0x0b0e14, 400, 1400);
+  camera=new THREE.PerspectiveCamera(50, view.clientWidth/view.clientHeight, 1, 5000);
+  renderer=new THREE.WebGLRenderer({canvas:document.getElementById('cv3d'), antialias:true});
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio)); resize();
+  controls=new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=.08;
+  scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x202832, 1.1));
+  const dir=new THREE.DirectionalLight(0xffffff,1.4); dir.position.set(200,400,150); scene.add(dir);
+  // 기준 그리드(맵 없을 때)
+  const grid=new THREE.GridHelper(600,30,0x223049,0x161b24); grid.position.y=0; grid.name='__grid'; scene.add(grid);
+  raycaster=new THREE.Raycaster(); pointer=new THREE.Vector2();
+  renderer.domElement.addEventListener('click',onPick);
+  window.addEventListener('resize',resize);
+  setCam('top');
+}
+function resize(){const v=document.getElementById('view');camera.aspect=v.clientWidth/v.clientHeight;camera.updateProjectionMatrix();renderer.setSize(v.clientWidth,v.clientHeight);}
+
+async function loadData(){
+  const [tl,log,areas]=await Promise.all([
+    fetch('../data/delta_timeline.json').then(r=>r.json()),
+    fetch('../data/log_data.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('../data/areas.json').then(r=>r.ok?r.json():[]).catch(()=>[])
+  ]);
+  TL=tl;LOG=log;AREAS=areas||[];OBJTYPE=tl.meta.objType||{};logP=(log&&log.players)||{};
+  document.getElementById('gid').textContent='game '+((log&&log.meta&&log.meta.game)||tl.meta.game||'—');
+  const pids=Object.keys(TL.timeline).filter(id=>OBJTYPE[id]===2).sort((a,b)=>a-b);
+  players=pids.map((id,i)=>({id,team:Math.floor(i/TEAM_SIZE)+1,color:TEAM_COLORS[(Math.floor(i/TEAM_SIZE))%TEAM_COLORS.length],
+    pts:TL.timeline[id], nick:(logP[id]||{}).characterName||('#'+id)}));
+  let tmin=Infinity,tmax=-Infinity;
+  for(const id in TL.timeline){const p=TL.timeline[id];if(p.length){tmin=Math.min(tmin,p[0][0]);tmax=Math.max(tmax,p[p.length-1][0]);}}
+  tickMin=tmin;tickMax=tmax;cur=tmin;
+  document.getElementById('clkEnd').textContent=fmt((tmax-tmin)/60);
+}
+
+async function loadMap(){
+  // DetailedMap.glb 있으면 로드, 없으면 그리드 + area 마커로 대체(골격)
+  try{
+    const glb=await new GLTFLoader().loadAsync('../data/DetailedMap.glb');
+    glb.scene.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});
+    scene.add(glb.scene);
+    const g=scene.getObjectByName('__grid'); if(g)g.visible=false;
+    document.getElementById('status').textContent='3D 맵 로드됨';
+  }catch(e){
+    // 맵 없음: area 라벨을 3D 포인트로(임시)
+    for(const a of AREAS){
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1,8), new THREE.MeshBasicMaterial({color:0x3a4658}));
+      m.position.set(WX(a.x),0,WZ(a.z)); scene.add(m);
+    }
+    document.getElementById('status').textContent='맵 glb 없음 — 궤적만 (Unity export 대기)';
+  }
+}
+
+function buildPlayers(){
+  const geo=new THREE.SphereGeometry(2.2,16,12);
+  for(const p of players){
+    const mat=new THREE.MeshStandardMaterial({color:p.color, emissive:p.color, emissiveIntensity:.35});
+    const m=new THREE.Mesh(geo,mat); m.userData.id=p.id; scene.add(m); markers[p.id]=m;
+    const tgeo=new THREE.BufferGeometry(); const tmat=new THREE.LineBasicMaterial({color:p.color, transparent:true, opacity:.5});
+    const line=new THREE.Line(tgeo,tmat); scene.add(line); trails[p.id]=line;
+  }
+}
+function stateAt(pts,t){
+  let lo=0,hi=pts.length-1,idx=-1;
+  while(lo<=hi){const m=(lo+hi)>>1;if(pts[m][0]<=t){idx=m;lo=m+1;}else hi=m-1;}
+  if(idx<0)return null;let x=null,z=null,hp=null;
+  for(let i=idx;i>=0&&x===null;i--)if(pts[i][1]!=null){x=pts[i][1];z=pts[i][2];}
+  for(let i=idx;i>=0&&hp===null;i--)if(pts[i][3]!=null)hp=pts[i][3];
+  return {x,z,hp,idx};
+}
+function updateScene(){
+  for(const p of players){
+    const s=stateAt(p.pts,cur), m=markers[p.id], line=trails[p.id];
+    if(!s||s.x===null){m.visible=false;line.visible=false;continue;}
+    const dead=s.hp!=null&&s.hp<=0;
+    m.visible=true; m.position.set(WX(s.x), 3, WZ(s.z));
+    m.scale.setScalar(p.id===selId?1.6:1); m.material.opacity=dead?.3:1; m.material.transparent=dead;
+    // 궤적(최근 ~40초)
+    const pos=[]; const win=cur-2400;
+    for(let i=0;i<=s.idx;i++){const pt=p.pts[i];if(pt[1]==null||pt[0]<win)continue;pos.push(WX(pt[1]),1.5,WZ(pt[2]));}
+    line.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    line.geometry.attributes.position.needsUpdate=true; line.visible=!dead&&pos.length>3;
+  }
+}
+
+// 카메라 프리셋
+function setCam(mode){
+  document.querySelectorAll('.cam button').forEach(b=>b.classList.remove('on'));
+  document.getElementById('cam-'+mode).classList.add('on');
+  const c=new THREE.Vector3(0,0,0);
+  if(mode==='top'){camera.position.set(0,520,0.1);}
+  else if(mode==='iso'){camera.position.set(-260,360,320);}
+  else {camera.position.set(-180,240,260);}
+  controls.target.copy(c); controls.update();
+}
+
+let lastTs=0;
+function animate(ts){
+  requestAnimationFrame(animate);
+  if(playing){const dt=(ts-lastTs)/1000;lastTs=ts;cur+=dt*60*speed;
+    if(cur>=tickMax){cur=tickMax;playing=false;syncPlay();}
+    document.getElementById('clk').textContent=fmt((cur-tickMin)/60);
+    const s=document.getElementById('seek');s.value=(cur-tickMin)/(tickMax-tickMin)*1000;s.style.setProperty('--p',((cur-tickMin)/(tickMax-tickMin)*100)+'%');
+    updateRoster(); renderState();
+  } else lastTs=ts;
+  updateScene(); controls.update(); renderer.render(scene,camera);
+}
+window.togglePlay=()=>{if(cur>=tickMax)cur=tickMin;playing=!playing;syncPlay();};
+function syncPlay(){document.getElementById('playBtn').innerHTML=playing?'&#10074;&#10074;':'&#9654;';}
+window.onSeek=v=>{cur=tickMin+v/1000*(tickMax-tickMin);document.getElementById('clk').textContent=fmt((cur-tickMin)/60);updateRoster();renderState();};
+window.setSpeed=(s,b)=>{speed=s;document.querySelectorAll('.spd button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.setCam=setCam;
+function fmt(s){s=Math.max(0,s|0);return (s/60|0)+':'+String(s%60).padStart(2,'0');}
+
+function onPick(e){
+  const r=renderer.domElement.getBoundingClientRect();
+  pointer.x=((e.clientX-r.left)/r.width)*2-1; pointer.y=-((e.clientY-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  const hits=raycaster.intersectObjects(Object.values(markers));
+  if(hits.length){selId=hits[0].object.userData.id;updateRoster();renderState();}
+}
+
+// 로스터 + 로그 (2D 뷰어와 동일 로직)
+function logP_maxhp(id){const P=logP[id];if(!P||!P.snapshots)return null;let mx=0;for(const s of P.snapshots){if(s.stats&&s.stats.MaxHp)mx=Math.max(mx,s.stats.MaxHp);if(s.hp)mx=Math.max(mx,s.hp);}return mx||null;}
+function buildRoster(){
+  const byTeam={};for(const p of players)(byTeam[p.team]=byTeam[p.team]||[]).push(p);
+  const el=document.getElementById('teams');el.innerHTML='';
+  Object.keys(byTeam).sort((a,b)=>a-b).forEach(tm=>{
+    const hd=document.createElement('div');hd.className='team-hd';
+    hd.innerHTML=`<span class="team-dot" style="background:#${byTeam[tm][0].color.toString(16).padStart(6,'0')}"></span>팀 ${tm}`;el.appendChild(hd);
+    byTeam[tm].forEach(p=>{const d=document.createElement('div');d.className='pl';d.id='pl3-'+p.id;
+      d.innerHTML=`<span class="nm">${p.nick}</span><span class="hpbar"><i></i></span>`;
+      d.onclick=()=>{selId=p.id;updateRoster();renderState();};el.appendChild(d);});
+  });
+}
+function updateRoster(){
+  for(const p of players){const s=stateAt(p.pts,cur),row=document.getElementById('pl3-'+p.id);if(!row)continue;
+    const dead=s&&s.hp!=null&&s.hp<=0;row.classList.toggle('dead',dead);row.classList.toggle('sel',p.id===selId);
+    const mx=logP_maxhp(p.id),bar=row.querySelector('.hpbar i');
+    if(bar){const frac=(s&&s.hp!=null&&mx)?Math.max(0,Math.min(1,s.hp/mx)):(dead?0:1);bar.style.width=(frac*100)+'%';bar.style.background=frac<.3?'var(--hp-lo)':'var(--hp)';}}
+}
+function renderState(){
+  const r=document.getElementById('side');
+  if(selId==null){r.innerHTML='<div class="empty">플레이어를 클릭하면<br>스탯·버프·스킬 표시</div>';return;}
+  const P=logP[selId],p=players.find(x=>x.id==selId);
+  if(!P||!P.snapshots){r.innerHTML='<div class="empty">'+(p?p.nick:selId)+' 로그 없음</div>';return;}
+  let snap=null;for(const s of P.snapshots){if(s.tick<=cur)snap=s;else break;}if(!snap)snap=P.snapshots[0];
+  const mx=logP_maxhp(selId)||snap.hp||1,hpFrac=Math.max(0,Math.min(1,(snap.hp||0)/mx));
+  let h=`<div class="pcard-hd"><span class="team-dot" style="width:13px;height:13px;background:#${(p?p.color:0x888888).toString(16).padStart(6,'0')}"></span>
+    <div><div class="big">${p?p.nick:selId}</div><div class="sub">#${selId} · 팀 ${p?p.team:'—'} · Lv ${snap.level??'—'} · ${fmt((snap.tick-tickMin)/60)}</div></div></div>`;
+  h+=`<div class="hpwrap"><div class="sec-t">HP ${snap.hp??'—'} / ${mx}</div><div class="bar"><i style="width:${hpFrac*100}%"></i></div></div>`;
+  if(snap.stats){h+='<div class="sec-t">전투 스탯</div><div class="statgrid">';
+    const order=['MaxHp','AttackPower','Defense','SkillAmp','AttackSpeed','MoveSpeed','HpRegen','SightRange'];
+    for(const k of order)if(snap.stats[k]!=null)h+=`<div class="stat"><div class="k">${k}</div><div class="v">${snap.stats[k]}</div></div>`;h+='</div>';}
+  h+='<div class="sec-t">버프 '+((snap.buffs&&snap.buffs.length)||0)+'</div><div class="chips">';
+  if(snap.buffs&&snap.buffs.length)for(const b of snap.buffs)h+=`<span class="chip buff">${b.name||('code '+b.code)}${b.duration?`<span class="d">${(+b.duration).toFixed(0)}s</span>`:''}</span>`;else h+='<span style="color:var(--dim2);font-size:11.5px">없음</span>';h+='</div>';
+  r.innerHTML=h;
+}
+
+boot();
+</script>
+</body>
+</html>
