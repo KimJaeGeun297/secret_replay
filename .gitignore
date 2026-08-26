@@ -1,8 +1,6 @@
 __pycache__/
 *.pyc
-*.er
-*.bin
+.omc/
 rosetta.json
 test*.json
 replay.json
-.omc/
