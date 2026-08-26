@@ -1,0 +1,104 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>리플레이 데이터 — 원본 vs 해석</title>
+<style>
+  :root{
+    --bg:#0b0f16;--panel:#121a26;--panel2:#0e151f;--line:#22304260;--line2:#243448;
+    --txt:#e7eef6;--dim:#8fa0b4;--raw:#ffb454;--dec:#4cc2ff;--ok:#69db7c;--bad:#ff6b81;--mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  @media(prefers-color-scheme:light){:root{--bg:#f4f7fb;--panel:#fff;--panel2:#f0f4f9;--line:#dbe4ee;--line2:#cdd9e6;--txt:#16202c;--dim:#5c6b7d;}}
+  :root[data-theme=dark]{--bg:#0b0f16;--panel:#121a26;--panel2:#0e151f;--line:#22304260;--txt:#e7eef6;--dim:#8fa0b4;}
+  :root[data-theme=light]{--bg:#f4f7fb;--panel:#fff;--panel2:#f0f4f9;--line:#dbe4ee;--txt:#16202c;--dim:#5c6b7d;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;padding:28px 20px;max-width:1000px;margin:0 auto}
+  h1{font-size:20px;font-weight:680;letter-spacing:-.2px;margin-bottom:4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:24px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+  .flow{display:flex;flex-direction:column;gap:10px}
+  .step{border:1px solid var(--line2);border-radius:12px;background:var(--panel);overflow:hidden}
+  .step-hd{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--panel2);font-weight:640;font-size:13px;border-bottom:1px solid var(--line)}
+  .tag{font:600 10px/1 var(--mono);padding:4px 7px;border-radius:5px;letter-spacing:.5px}
+  .tag.raw{background:#ffb45420;color:var(--raw)}
+  .tag.dec{background:#4cc2ff20;color:var(--dec)}
+  .tag.me{background:#69db7c20;color:var(--ok)}
+  .body{padding:12px 14px;overflow-x:auto}
+  code,pre{font-family:var(--mono);font-size:12.5px}
+  pre{white-space:pre;word-break:normal}
+  .hex{color:var(--raw);word-break:break-all;white-space:normal;line-height:1.8}
+  .arrow{text-align:center;color:var(--dim);font-size:18px;margin:-2px 0}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+  th,td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td.n{color:var(--dec)}
+  .note{color:var(--dim);font-size:12.5px;margin-top:8px}
+  .k{color:var(--raw)}
+  .banner{border-radius:12px;padding:14px 16px;margin:8px 0;font-size:13.5px}
+  .banner.ok{background:#69db7c14;border:1px solid #69db7c40}
+  .banner.bad{background:#ff6b8114;border:1px solid #ff6b8140}
+  .banner b{font-weight:680}
+  .lock{color:var(--bad)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.split{grid-template-columns:1fr}}
+  .mini{font-size:11px;color:var(--dim)}
+</style></head><body>
+<h1>리플레이 데이터 — 원본 vs 내가 해석한 것</h1>
+<div class="sub">게임 63953953 (랭크 스쿼드) · 같은 판을 두 소스로 대조</div>
+
+<h2>✅ dakgg <span style="color:var(--ok)">— 원본이 곧 읽히는 데이터</span></h2>
+<div class="flow">
+  <div class="step">
+    <div class="step-hd"><span class="tag raw">원본</span> 암호화된 .bin (<span id="binsz"></span>)</div>
+    <div class="body"><div class="hex" id="binhex"></div>
+      <div class="note">AES-128-CBC · 키=IV=전부 0 (난독화 수준)</div></div>
+  </div>
+  <div class="arrow">↓ <span class="mini">내 해석 = openssl AES 복호화 (그게 전부)</span></div>
+  <div class="step">
+    <div class="step-hd"><span class="tag dec">복호화</span> 평문 JSON</div>
+    <div class="body"><pre id="hdr"></pre></div>
+  </div>
+  <div class="arrow">↓ <span class="mini">JSON에 이미 사람이 읽는 값. 나는 프레임→초 나눗셈만 붙임</span></div>
+  <div class="split">
+    <div class="step">
+      <div class="step-hd"><span class="tag me">해석</span> 이동경로 <span class="mini" id="pname" style="margin-left:auto"></span></div>
+      <div class="body"><table><thead><tr><th>raw [frame,x,y]</th><th>→ t(초)</th><th>x</th><th>y</th></tr></thead><tbody id="traj"></tbody></table>
+      <div class="note">x,y는 <b>원본 그대로</b> — 곱하거나 변환한 것 없음</div></div>
+    </div>
+    <div class="step">
+      <div class="step-hd"><span class="tag me">해석</span> 이벤트 (딜·스킬)</div>
+      <div class="body"><table><thead><tr><th>t</th><th>원본 이벤트</th></tr></thead><tbody id="evs"></tbody></table>
+      <div class="note">딜/힐/스킬/레벨 전부 평문 배열로 존재</div></div>
+    </div>
+  </div>
+</div>
+
+<h2>🔒 .er (공식) <span style="color:var(--bad)">— 원본은 있는데 못 읽는 데이터</span></h2>
+<div class="flow">
+  <div class="step">
+    <div class="step-hd"><span class="tag raw">원본</span> .er 스냅샷 (tick <span id="ertick"></span>, <span id="ersz"></span>)</div>
+    <div class="body"><div class="hex" id="erhex"></div>
+      <div class="note">내가 읽어낸 구조: 헤더 <span class="k">ab ff ff 00 00</span> + 803개 엔티티가 <b>중첩 가변길이 비트팩</b></div></div>
+  </div>
+  <div class="arrow">↓ <span class="mini">좌표 비트 위치 탐색 — 8가지 방법 전부 실패(검증됨)</span></div>
+  <div class="banner bad"><b class="lock">🔒 좌표 추출 불가.</b> 저 hex 안에 좌표가 분명히 있지만, 중첩 가변길이라 고정 오프셋이 안 생겨 어느 비트인지 못 찾음. 규칙은 암호화된 GameAssembly의 Serialize 코드에만 존재.</div>
+  <div class="step">
+    <div class="step-hd"><span class="tag dec">정답</span> 같은 tick, dakgg가 준 값 (=이미 디코딩된 .er)</div>
+    <div class="body"><table><thead><tr><th>플레이어</th><th>x</th><th>y</th></tr></thead><tbody id="gt"></tbody></table>
+      <div class="note">dakgg 스냅샷 = .er 스냅샷을 디코딩한 것(67틱 바이트 동일). <b>.er 내용이 dakgg에 이미 다 있음</b></div></div>
+  </div>
+</div>
+
+<div class="banner ok" style="margin-top:24px"><b>결론:</b> 필요한 리플레이 데이터(위치·딜·스킬·상태)는 dakgg 평문으로 다 확보됨. .er을 더 팔 이유 없음.</div>
+
+<script>
+const D={"bin_hex": "008d570e95f1d32e8e423f7e7709646d1cec803eccddff580347f188fc607b0500ddb23ade477509e9937c58dad2c0e5", "bin_size": 7266176, "header": {"gameId": 63953953, "gameVersion": "12.1.0", "matchingTeamMode": "Squad", "avgMMR": 3924, "startSeq": 2878, "endSeq": 81926}, "player": "고순조 (id 1340, char 4)", "raw_moves": [[3190, 661, 694], [3202, 664, 693], [3271, 663, 694], [3279, 661, 694], [3288, 660, 694], [3370, 648, 694], [3445, 649, 695], [3454, 648, 696]], "traj": [[3190, 5.2, 661, 694], [3202, 5.4, 664, 693], [3271, 6.55, 663, 694], [3279, 6.68, 661, 694], [3288, 6.83, 660, 694], [3370, 8.2, 648, 694], [3445, 9.45, 649, 695], [3454, 9.6, 648, 696]], "events": [[0.0, ["CmdDamage", 1311, 1311, 1000, 0]], [0.0, ["CmdDamage", 1312, 1312, 1000, 0]], [0.0, ["CmdDamage", 1313, 1313, 1000, 0]], [0.0, ["CmdDamage", 1314, 1314, null, 0]], [5.0, ["CmdPlaySkillAction", 1315, "Touring_GuideRobotPassive", 1000]], [5.0, ["CmdPlaySkillAction", 1315, "Touring_GuideRobotPassive", 1300]]], "er_tick": 2878, "er_size": 51024, "er_hex": "abffff00000ca2daac7a66f603841576011f1e511175d199d9997d7cd9c1079f3ffe6c2220a8a80844a351131121f18d", "gt": [["고순조", 661, 694], ["맹독바위게", 195, 705], ["양목주", 568, 327], ["ninetail", 519, 836], ["tkfkdgoYW", 679, 665], ["GARNETS", 428, 304]]};
+document.getElementById('binsz').textContent=(D.bin_size/1e6).toFixed(2)+' MB';
+document.getElementById('binhex').textContent=D.bin_hex.replace(/(..)/g,'$1 ').trim()+' …';
+document.getElementById('hdr').textContent=JSON.stringify(D.header,null,2);
+document.getElementById('pname').textContent=D.player;
+document.getElementById('traj').innerHTML=D.traj.map((r,i)=>`<tr><td>[${D.raw_moves[i].join(', ')}]</td><td class=n>${r[1]}</td><td class=n>${r[2]}</td><td class=n>${r[3]}</td></tr>`).join('');
+document.getElementById('evs').innerHTML=D.events.map(e=>{const a=e[1];let s='';if(a[0]=='CmdDamage')s=`${a[1]}→${a[2]} 딜 ${a[3]??'-'}`;else if(a[0]=='CmdPlaySkillAction')s=`${a[1]} 스킬 ${a[2]}`;else s=a.join(' ');return `<tr><td class=n>${e[0]}s</td><td>${s}</td></tr>`}).join('');
+document.getElementById('ertick').textContent=D.er_tick;
+document.getElementById('ersz').textContent=(D.er_size/1024|0)+' KB';
+document.getElementById('erhex').textContent=D.er_hex.replace(/(..)/g,'$1 ').trim()+' …';
+document.getElementById('gt').innerHTML=D.gt.map(g=>`<tr><td>${g[0]}</td><td class=n>${g[1]}</td><td class=n>${g[2]}</td></tr>`).join('');
+</script></body></html>

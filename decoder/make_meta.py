@@ -1,0 +1,21 @@
+import json
+# 경험적으로 검증된 union 해상도 (dnfile 대신 실제 바이트에서 확정)
+meta={
+ "note":"Empirically resolved from real snapshot bytes (dnfile pure-python parse of 484K attrs impractically slow here).",
+ "unions":{
+   "SnapshotWrapper":{
+     "resolution":"by object member-count header byte",
+     "SnapshotWrapperBasic":{"header_byte":4,"members":4},
+     "SnapshotWrapperFull":{"header_byte":7,"members":7},
+     "discriminator_field":"objectType (member#1, int enum) distinguishes entity kind"}
+ },
+ "entity_record_signature":"07 <objectType:1B> 00 00 00 <objectId:int32>",
+ "observed_objectTypes_in_snap0":{"2":"PlayerCharacter(24)","3":"?(49)","14":"?(74)","12":4,"1":3,"11":3,"0":1},
+ "validated_offsets_from_record_start":{
+   "objectType":"+1 int32","objectId":"+5 int32","positionXZ.x":"+9 float","positionXZ.z":"+13 float",
+   "hp":"+40 int32","sp_vp":"+44 int32","extraPoint":"+48 int32","level":"+52 int32",
+   "shieldAll":"+56","shieldNormal":"+60","shieldSkill":"+64","moveSpeed":"+68 float"},
+ "world_to_grid_affine":{"gridX":"-1.645*(x+z)+290.1","gridY":"-1.653*x+1.652*z+555.0","residual_median":0.40}
+}
+json.dump(meta,open('mempack_meta.json','w'),ensure_ascii=False,indent=1)
+print("wrote mempack_meta.json")
