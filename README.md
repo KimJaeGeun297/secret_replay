@@ -12,6 +12,52 @@
 - IL2CppDumper 출력(`CharacterStatusSnapshot : IMemoryPackable`, `[MemoryPackOrder]`)으로 정체 판명 + 필드 순서 확보.
 - 압축 해제하면 `gameId`·좌표·HP·스탯이 그대로 읽히고, **캐릭터·버프·레벨·사망까지 시계열로 복원**됨.
 
+## MemoryPack 구조
+
+`.er` payload에 도달하는 레이어 → MemoryPack 최상위 컨테이너 계층:
+
+```mermaid
+flowchart TD
+  F[".er 파일 · 1024B 헤더 + 청크"] -->|"청크 payload (raw)"| B["brotli.decompress()"]
+  B -->|"MemoryPack 파싱"| R["ReplaySnapshot · top object"]
+  R --> G["GameSnapshot"]
+  G -->|"member 1"| W["worldSnapshot : List&lt;SnapshotWrapper&gt; · ~803 엔티티 · union"]
+  G -->|"member 3"| A["areaRestrictionRemainTime : BlisFixedPoint"]
+  R --> U["UserSnapshot · 14 members"]
+  U --> U1["1 · characterSnapshot : SnapshotWrapper · union · positionXZ"]
+  U --> U2["2 · playerSnapshot : byte[] · nested → 재귀"]
+  U --> U6["6 · survivalTime : BlisFixedPoint"]
+```
+
+### 원시 와이어 타입 (모두 little-endian)
+
+| 타입 | 와이어 레이아웃 |
+|---|---|
+| **object** | `[1B member-count]` (0–249 = 멤버 수, `0xFF`=null) → `[MemoryPackOrder]` 순서로 멤버. 상속 시 base가 먼저 |
+| **collection** `T[]`·`List<T>` | `[int32 length]` (`−1`=null) → N개 원소 |
+| **byte[]** · nested | `[int32 length]` → raw bytes. 중첩 스냅샷 = 별도 MemoryPack blob → **재귀** |
+| **string** | `[int32 a][int32 utf16Len][utf8]`, **utf8Len = ~a** (a는 음수). `a=0`→`""`, `a=−1`→null |
+| **BlisFixedPoint** | `object { int internalValue }`, 월드값 = `internalValue / 100` |
+| **union** (SnapshotWrapper) | 별도 태그 바이트 없음 — member-count 헤더가 서브타입: `0x07`=Full, `0x04`=Basic. 멤버 #1 `objectType`이 엔티티 종류 |
+
+### 바이트 판독 예
+
+한글 닉네임 문자열 — `~(−10) = 9`바이트 UTF-8, UTF-16 글자수 3:
+```
+F6 FF FF FF   03 00 00 00   EB 8B A4  EB A5 B4  EC BD 94
+└ int32 −10   └ utf16Len 3  └────── 9B utf-8 = "다르코" ──────┘
+   (utf8Len = ~a = 9)
+```
+
+엔티티 스냅샷 레코드 시작 — member-count `0x07`=Full, 첫 int32 필드가 종류 판별:
+```
+07            02 00 00 00          …
+└ member 7    └ objectType = 2     └ objId (member 2)
+  = Full        = PlayerCharacter
+```
+
+> 한 스냅샷에 SnapshotWrapperFull 158 + Basic 2, 그중 `objectType=2`(플레이어) 24개.
+
 ## 완료 상태 (풀 디코드 + 뷰어)
 
 | 항목 | 상태 |
