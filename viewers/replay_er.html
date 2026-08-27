@@ -134,7 +134,7 @@
 <script>
 const TEAM_COLORS=['#4ea1ff','#f87171','#4ade80','#fbbf24','#c084fc','#22d3ee','#fb923c','#f472b6','#a3e635','#e879f9','#2dd4bf','#f59e0b'];
 const TEAM_SIZE=3;
-let TL=null,LOG=null,OBJTYPE={},logP={},AREAS=[],mapImg=null,MAPMETA=null;
+let TL=null,LOG=null,OBJTYPE={},logP={},AREAS=[],mapImg=null,mapImgBright=null,MAPMETA=null;let SIGHT_MULT=2.6,fogOn=true;
 let players=[],others=[];
 let B={minx:0,maxx:1,miny:0,maxy:1};
 let ROT=-138*Math.PI/180; // dakgg 방향(유저 확정 -138°)
@@ -157,7 +157,8 @@ async function load(){
     ]);
     TL=tl;LOG=log;AREAS=areas||[];OBJTYPE=tl.meta.objType||{};logP=(log&&log.players)||{};
     MAPMETA=mm;
-    if(mm){mapImg=new Image();mapImg.src='../data/map_bg.png';await new Promise(res=>{mapImg.onload=res;mapImg.onerror=res;});}
+    if(mm){mapImg=new Image();mapImg.src='../data/map_bg.png';await new Promise(res=>{mapImg.onload=res;mapImg.onerror=res;});
+      mapImgBright=new Image();mapImgBright.src='../data/map_bg_bright.png';await new Promise(res=>{mapImgBright.onload=res;mapImgBright.onerror=res;});}
     document.getElementById('gid').textContent='game '+((log&&log.meta&&log.meta.game)||tl.meta.game||'—');
     prep();buildRoster();buildEvents();fit();draw();renderState();
     document.getElementById('status').textContent=players.length+'명 · '+Object.keys(TL.timeline).length+' 오브젝트 · '+(LOG?'로그 O':'로그 X');
@@ -221,12 +222,20 @@ function logP_maxhp(id){
   const P=logP[id];if(!P||!P.snapshots)return null;
   let mx=0;for(const s of P.snapshots){if(s.stats&&s.stats.MaxHp)mx=Math.max(mx,s.stats.MaxHp);if(s.hp)mx=Math.max(mx,s.hp);}return mx||null;
 }
+function sightAt(id){const P=logP[id];if(!P||!P.snapshots)return 8.5;let sr=8.5;for(const s of P.snapshots){if(s.tick<=cur){if(s.stats&&s.stats.SightRange)sr=s.stats.SightRange;}else break;}return sr;}
 function draw(){
   ctx.clearRect(0,0,W,H);
   const iz=1/Math.sqrt(zoom);
   ctx.save(); ctx.translate(W/2+panx,H/2+pany); ctx.scale(zoom,zoom); ctx.rotate(ROT); ctx.translate(-W/2,-H/2);
   if(mapImg&&MAPMETA){const w=MAPMETA.world;ctx.globalAlpha=.95;
     ctx.drawImage(mapImg, X(w.minx), Y(w.maxz), X(w.maxx)-X(w.minx), Y(w.minz)-Y(w.maxz));ctx.globalAlpha=1;}
+  if(fogOn&&mapImgBright&&MAPMETA){const w=MAPMETA.world,scaleX=(W-2*pad)/(B.maxx-B.minx);
+    ctx.save();ctx.beginPath();let any=false;
+    for(const p of players){const s=stateAt(p.pts,cur);if(!s||s.x===null||(s.hp!=null&&s.hp<=0))continue;
+      const rpx=sightAt(p.id)*scaleX*SIGHT_MULT,cxp=X(s.x),cyp=Y(s.z);
+      ctx.moveTo(cxp+rpx,cyp);ctx.arc(cxp,cyp,rpx,0,7);any=true;}
+    if(any){ctx.clip();ctx.drawImage(mapImgBright,X(w.minx),Y(w.maxz),X(w.maxx)-X(w.minx),Y(w.minz)-Y(w.maxz));}
+    ctx.restore();}
   if(window.__dbg){const DBG=[['모래사장',-166.9,-39.8,'#ff3b3b'],['병원',181.8,-14.3,'#3bff6b'],['항구',31.7,-209.9,'#3b9bff'],['골목',24,252.3,'#ffd43b']];
     ctx.textAlign='center';for(const [n,x,z,c] of DBG){const ax=X(x),az=Y(z);ctx.fillStyle=c;ctx.beginPath();ctx.arc(ax,az,5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.fillText(n,ax,az-9);}}
   ctx.strokeStyle=mapImg?'#ffffff08':'#161b24';ctx.lineWidth=1;
