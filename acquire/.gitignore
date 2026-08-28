@@ -1,0 +1,14 @@
+# 절대 커밋 금지 — 세션 토큰/개인정보/캡처 원본
+session_tokens.log
+auth_headers.log
+flows.mitm
+flows*.mitm
+*.er
+
+# 로컬 설정(개인 userNum 등)
+config.local
+.env
+
+# 파이썬
+__pycache__/
+*.pyc

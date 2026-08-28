@@ -123,3 +123,6 @@ gridY = -1.653*x + 1.652*z + 555.0
 
 - **dakgg** (무인증): `er.dakgg.io/api/v1/rpc/replay?gameId=X` → `.bin` (AES-128-CBC 키=IV=0) — 닥지지 재가공 포맷
 - **공식 `.er`** (세션 인증): `ReplayApi.FindReplayGame` → `bser-rest-release.bser.io/api/external/findReplayGame/{gameId}/{userNum}` — 게임사 비공개 API
+
+공식 `.er` 취득 파이프라인(세션 토큰 캡처 → gameId→UUID 조회 → 다운로드)은 [`acquire/`](acquire/) 참고.
+세션 토큰 헤더는 `X-BSER-SessionKey`(게임 IL2Cpp 덤프 `Blis.Common.AuthResult.sessionKey`).
