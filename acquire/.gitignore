@@ -9,6 +9,11 @@ flows*.mitm
 config.local
 .env
 
+# 다운로드한 게임데이터(님블뉴런 소유물 — 커밋 금지, 스크립트로 받을 것)
+gamedb/
+l10n-*.txt
+gamedata*.zip
+
 # 파이썬
 __pycache__/
 *.pyc
